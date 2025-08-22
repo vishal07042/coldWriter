@@ -947,6 +947,9 @@ class WordKiosk(QMainWindow):
         set_autostart_windows(enabled=(self.remaining > 0))
         save_goal_state(self.remaining, completed=(self.remaining == 0))
         save_resume_state(self.goal_total, self.persisted_written)
+        
+        # Make window full screen
+        self.showMaximized()
 
     def poll_word_count(self):
         js = "Number(window._writerWordCount || 0)"
