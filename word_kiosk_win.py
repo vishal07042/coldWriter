@@ -241,7 +241,7 @@ class WordKiosk(QMainWindow):
         save_resume_state(self.goal_total, self.persisted_written)
         
         # Make window full screen
-        self.showMaximized()
+        self.showFullScreen()
 
     def poll_word_count(self):
         js = "Number(window._writerWordCount || 0)"
@@ -287,8 +287,30 @@ class WordKiosk(QMainWindow):
         if self._allow_close:
             return
         try:
+            # If minimized, restore to fullscreen and bring to front
+            if self.windowState() & Qt.WindowMinimized:
+                self.showFullScreen()
             self.raise_()
             self.activateWindow()
+            self._win_bring_to_front()
+        except Exception:
+            pass
+
+    def _win_bring_to_front(self):
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            hwnd = int(self.winId())
+            SW_RESTORE = 9
+            SW_MAXIMIZE = 3
+            # Restore/maximize and force to foreground
+            user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.ShowWindow(hwnd, SW_MAXIMIZE)
+            user32.SetForegroundWindow(hwnd)
+            user32.SetActiveWindow(hwnd)
+            user32.BringWindowToTop(hwnd)
         except Exception:
             pass
 
@@ -296,6 +318,22 @@ class WordKiosk(QMainWindow):
         if not self._allow_close and event.key() in (Qt.Key_Escape, Qt.Key_F11):
             return
         super().keyPressEvent(event)
+
+    def changeEvent(self, event: QtCore.QEvent):
+        # Prevent staying minimized while task is unfinished
+        if not self._allow_close:
+            try:
+                if (self.windowState() & Qt.WindowMinimized) or self.isMinimized():
+                    self.showFullScreen()
+                    QTimer.singleShot(0, self.force_foreground_if_needed)
+            except Exception:
+                pass
+        super().changeEvent(event)
+
+    def focusOutEvent(self, event: QtGui.QFocusEvent):
+        if not self._allow_close:
+            QTimer.singleShot(0, self.force_foreground_if_needed)
+        super().focusOutEvent(event)
 
     def closeEvent(self, event: QtGui.QCloseEvent):
         if self._allow_close:
@@ -312,7 +350,7 @@ class WordKiosk(QMainWindow):
             set_autostart_windows(False)
             self.close()
 
-
+   
 # ------------------------------ App orchestration ------------------------------
 def ask_new_goal(parent=None) -> int:
     while True:
@@ -382,3 +420,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
